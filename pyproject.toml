@@ -123,6 +123,7 @@ dependencies = [
     "pydantic-extra-types>=2.11.1",
     "pydantic-settings>=2.15.0",
     "pygments>=2.21.0",
+    "pyjwt==2.10.1",
     "pyparsing>=3.3.2",
     "python-dateutil>=2.9.0.post0",
     "python-dotenv>=1.2.3",
