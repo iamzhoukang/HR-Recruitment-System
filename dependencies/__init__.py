@@ -45,5 +45,5 @@ async def get_super_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="权限不足，无法访问!")
 
 
-def get_cache_instance():
+def get_cache_instance() -> HRCache:
     return HRCache()

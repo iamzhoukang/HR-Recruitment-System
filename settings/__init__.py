@@ -1,5 +1,5 @@
 from datetime import timedelta
-
+from pydantic import Field
 from pydantic_settings import BaseSettings
 from pydantic import computed_field
 import os
@@ -27,6 +27,17 @@ class Settings(BaseSettings):
 
     #邀请码过期时间
     INVITE_CODE_EXPIRE = 60*60*24*2 #两天
+
+
+    #邮箱相关配置
+    MAIL_USERNAME: str = Field(..., validation_alias="MAIL_USERNAME")
+    MAIL_PASSWORD: str = Field(..., validation_alias="MAIL_PASSWORD")
+    MAIL_FROM: str = Field(..., validation_alias="MAIL_USERNAME")
+    MAIL_PORT: int = 587
+    MAIL_SERVER: str = "smtp.qq.com"
+    MAIL_FROM_NAME: str = "舟亢"
+    MAIL_STARTTLS: bool = True
+    MAIL_SSL_TLS: bool = False
 
     @computed_field
     @property

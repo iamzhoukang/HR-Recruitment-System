@@ -25,7 +25,7 @@ class HRCache(metaclass=SingletonMeta):
         return value
 
     async def delete(self, key):
-        await self.cache_backend.clear(key)
+        await self.cache_backend.clear(key=key)
 
     async def set_invite_info(self,invite_info: InviteInfoSchema):
         key = f"{self.invite_prefix}{invite_info.email}"
