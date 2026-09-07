@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
 
     #邀请码过期时间
-    INVITE_CODE_EXPIRE = 60*60*24*2 #两天
+    INVITE_CODE_EXPIRE: int = 60*60*24*2 #两天
 
 
     #邮箱相关配置
