@@ -1,6 +1,8 @@
 # core/mail.py
 from fastapi_mail import FastMail, ConnectionConfig
 from pydantic import SecretStr, EmailStr
+import certifi
+
 from settings import settings
 
 def create_mail_instance() -> FastMail:
@@ -16,5 +18,6 @@ def create_mail_instance() -> FastMail:
         MAIL_SSL_TLS=settings.MAIL_SSL_TLS,
         USE_CREDENTIALS=True,
         VALIDATE_CERTS=True,
+        CERT_BUNDLE=certifi.where(),
     )
     return FastMail(mail_config)

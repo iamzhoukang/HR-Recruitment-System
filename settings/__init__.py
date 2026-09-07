@@ -33,11 +33,11 @@ class Settings(BaseSettings):
     MAIL_USERNAME: str = Field(..., validation_alias="MAIL_USERNAME")
     MAIL_PASSWORD: str = Field(..., validation_alias="MAIL_PASSWORD")
     MAIL_FROM: str = Field(..., validation_alias="MAIL_USERNAME")
-    MAIL_PORT: int = 587
+    MAIL_PORT: int = 465
     MAIL_SERVER: str = "smtp.qq.com"
     MAIL_FROM_NAME: str = "舟亢"
-    MAIL_STARTTLS: bool = True
-    MAIL_SSL_TLS: bool = False
+    MAIL_STARTTLS: bool = False
+    MAIL_SSL_TLS: bool = True
 
     @computed_field
     @property

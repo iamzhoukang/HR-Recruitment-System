@@ -3,7 +3,12 @@ import string
 from fastapi import APIRouter, Depends, BackgroundTasks
 from schemas import ResponseSchema
 from core.cache import HRCache , InviteInfoSchema
-from schemas.user_schema import UserLoginSchema,UserLoginResponseSchema,UserInviteSchema
+from schemas.user_schema import (
+    UserLoginSchema,
+    UserLoginResponseSchema,
+    UserInviteSchema,
+    UserRegisterSchema,
+)
 from dependencies import get_session_instance, get_auth_handler, AuthHandler, get_cache_instance,get_super_user
 from models import AsyncSession
 from repository.user_repo import UserRepo, DepartmentRepo
@@ -57,7 +62,7 @@ async def invite(
             raise HTTPException(status_code= status.HTTP_400_BAD_REQUEST,detail="该邮箱已经注册")
         #校验department_id在数据库是否存在
         department_repo = DepartmentRepo(session)
-        department = department_repo.get_by_id(str(department_id))
+        department = await department_repo.get_by_id(str(department_id))
         if not department:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="该部门不存在")
         #生成邀请码
@@ -71,6 +76,37 @@ async def invite(
             email=str(email),
             invite_code=invite_code,
         )
+        return ResponseSchema()
+
+@router.post("/register",summary="注册")
+async def register(
+    register_data: UserRegisterSchema,
+    session: AsyncSession = Depends(get_session_instance),
+    cache:HRCache = Depends(get_cache_instance),
+):
+    email = register_data.email
+    #校验邮箱和邀请码
+    invite_info : InviteInfoSchema = await cache.get_invite_info(str(email))
+    if not invite_info:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="注册邮箱不存在")
+    if invite_info.invite_code != register_data.invite_code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邀请码错误")
+
+    #进行注册
+    async with session.begin():
+        #校验邮箱是否注册
+        user_repo = UserRepo(session)
+        user: UserModel = await user_repo.get_by_email(str(email))
+        if user:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="该邮箱已经被注册")
+        #创建用户
+        await user_repo.create_user({
+            "email":email,
+            "username": register_data.username,
+            "realname":register_data.realname,
+            "password":register_data.password,
+            "department_id":invite_info.department_id,
+        })
         return ResponseSchema()
 
 
