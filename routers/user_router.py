@@ -8,6 +8,7 @@ from schemas.user_schema import (
     UserLoginResponseSchema,
     UserInviteSchema,
     UserRegisterSchema,
+    UserListResponseSchema,
 )
 from dependencies import get_session_instance, get_auth_handler, AuthHandler, get_cache_instance,get_super_user
 from models import AsyncSession
@@ -109,7 +110,18 @@ async def register(
         })
         return ResponseSchema()
 
-
+@router.get(path="/list",summary="获取员工列表",response_model=UserListResponseSchema)
+async def user_list(
+    page : int = 1,
+    size : int = 10,
+    department_id : str|None = None,
+    super_user : UserModel = Depends(get_super_user),
+    session: AsyncSession = Depends(get_session_instance),
+):
+    async with session.begin():
+        user_repo = UserRepo(session)
+        users = await user_repo.get_user_list(page=page,size=size,department_id=department_id)
+    return {"users":users}
 
 
 
