@@ -39,6 +39,15 @@ class Settings(BaseSettings):
     MAIL_STARTTLS: bool = False
     MAIL_SSL_TLS: bool = True
 
+    #钉钉相关的配置
+    DINGTALK_CLIENT_ID: str = Field(...,validation_alias="DINGTALK_APP_KEY")
+    DINGTALK_CLIENT_SECRET: str = Field(...,validation_alias="DINGTALK_APP_SECRET")
+
+    #前端和后端的域名
+    BACKEND_BASE_URL:str = "https://starboard-simile-provided.ngrok-free.dev"
+
+
+
     @computed_field
     @property
     def DATABASE_URL(self) -> str:
