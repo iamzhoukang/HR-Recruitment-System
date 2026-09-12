@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi_cache import FastAPICache
 
 from routers.user_router import router as user_router
+from routers.position_router import router as position_router
 from contextlib import asynccontextmanager
 from redis import asyncio as aioredis
 from settings import settings
@@ -34,7 +35,7 @@ app.add_middleware(
 )
 
 app.include_router(user_router)
-
+app.include_router(position_router)
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
