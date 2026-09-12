@@ -70,3 +70,8 @@ class DingdingUserSchema(BaseModel):
 
 class DingdingRespSchema(BaseModel):
     dingding_user:DingdingUserSchema | None
+
+class AssignDepartmentSchema(BaseModel):
+    hr_id: str = Field(...,description="HR的id")
+    department_ids: List[str] = Field(...,description="HR负责的id列表")
+

@@ -2,7 +2,9 @@ from sqlalchemy import select, delete
 
 from . import BaseRepo
 from models.user import UserModel, DingdingUserModel, DepartmentModel
-from typing import Sequence
+from typing import Sequence, List
+from sqlalchemy.orm import selectinload
+
 
 class UserRepo(BaseRepo):
     async def create_user(self,user_data:dict) -> UserModel:
@@ -57,6 +59,20 @@ class UserRepo(BaseRepo):
             select(DingdingUserModel).where(DingdingUserModel.user_id == user_id)
         )
         return dingding_user
+
+    async def assign_department(self,hr_id:str,department_ids:List[str]):
+        hr_stmt = select(UserModel).where(UserModel.id == hr_id).options(selectinload(
+            UserModel.managed_departments))
+        hr:UserModel = await self.session.scalar(hr_stmt)
+        if not hr:
+            raise ValueError("该用户不存在")
+        department_stmt = select(DepartmentModel).where(DepartmentModel.id.in_(department_ids))
+        departments = (await self.session.scalars(department_stmt)).all()
+        hr.managed_departments = departments
+
+
+
+
 
 class DepartmentRepo(BaseRepo):
     async def create_department(self,department_data:dict) -> DepartmentModel:
