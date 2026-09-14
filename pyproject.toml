@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "aiofiles>=25.1.0",
     "alembic>=1.19.1",
     "annotated-doc>=0.0.5",
     "annotated-types>=0.8.0",
@@ -111,6 +112,7 @@ dependencies = [
     "parso>=0.8.7",
     "pexpect>=4.9.0",
     "pickleshare>=0.7.5",
+    "pillow>=12.3.0",
     "platformdirs>=4.11.5",
     "prometheus-client>=0.26.0",
     "prompt-toolkit>=3.0.53",
@@ -128,6 +130,7 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "pygments>=2.21.0",
     "pyjwt==2.10.1",
+    "pymupdf>=1.28.2",
     "pyparsing>=3.3.2",
     "python-dateutil>=2.9.0.post0",
     "python-dotenv>=1.2.3",

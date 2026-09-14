@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     #前端和后端的域名
     BACKEND_BASE_URL:str = "https://starboard-simile-provided.ngrok-free.dev"
 
+    #文件简历上传存储路径
+    RESUME_DIR: str = os.path.join(BASE_DIR,"upload")
+
 
 
     @computed_field
