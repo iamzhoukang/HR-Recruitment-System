@@ -11,7 +11,8 @@ from settings import settings
 from core.ocr import PaddleOcr
 from dependencies import get_cache_instance,HRCache
 from core.cache import TaskInfoSchema
-
+from agents.resume import extract_candidate_info
+from schemas.agent_schema import AgentCandidateSchema
 
 async def send_email_task(message: MessageSchema):
     # 发送邮件
@@ -55,11 +56,13 @@ async def ocr_parse_resume_task(
         json_url = await paddle_ocr.poll_for_state(job_id)
         contents = await paddle_ocr.fetch_parsed_contents(json_url)
         content = "\n\n".join(contents)
+
         #TODO:将content丢给大模型，让大模型识别其中内容，例如姓名，性别之类
+        candidate_info: AgentCandidateSchema= await extract_candidate_info(content)
 
         #设置当前状态为done
         result = {"contents":content}
-        await cache.set_task_info(TaskInfoSchema(task_id=task_id,status="done",result=result))
+        await cache.set_task_info(TaskInfoSchema(task_id=task_id,status="done",result=candidate_info))
     except Exception as e:
         #如果出现异常状态为failed
         await cache.set_task_info(TaskInfoSchema(task_id=task_id,status="failed",error=str(e)))
