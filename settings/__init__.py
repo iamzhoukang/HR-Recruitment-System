@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     #文件简历上传存储路径
     RESUME_DIR: str = os.path.join(BASE_DIR,"upload")
 
+    #Paddle OCR Access Token
+    PADDLE_OCR_ACCESS_TOKEN: str = Field(..., validation_alias="PADDLE_OCR_ACCESS_TOKEN")
 
 
     @computed_field

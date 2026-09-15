@@ -1,19 +1,19 @@
 import os.path
 import uuid
 
-from exceptiongroup import catch
-from fastapi import APIRouter, Depends, HTTPException, UploadFile , File
-from openai.resources.containers.files import content
-from sqlalchemy.sql.functions import current_user
-from schemas.candidate_schema import ResumeUploadRespSchema
+from core.cache import HRCache
+from fastapi import APIRouter, Depends, HTTPException, UploadFile , File, BackgroundTasks
+from schemas.candidate_schema import ResumeUploadRespSchema,ResumePaseSchema,ResumeParseTaskRespSchema,ResumeParseTaskInfoRespSchema
 from repository.candidate_repo import ResumeRepo
-from dependencies import get_session_instance , get_current_user
+from dependencies import get_session_instance, get_current_user, get_cache_instance
 from settings import settings
 from fastapi import status
 from models import AsyncSession
 from models.user import UserModel
 from core.pdf import WordToPdfConverter
 from loguru import logger
+from core.ocr import PaddleOcr
+from tasks import ocr_parse_resume_task
 import aiofiles
 
 router = APIRouter(prefix="/candidate",tags=["candidate"])
@@ -72,3 +72,37 @@ async def resume_upload(
         resume = await resume_repo.create_resume(file_path=file_path,uploader_id=current_user.id)
     return {"resume":resume}
 
+
+
+#1用户发起一个简历识别的请求，创建一个后台任务，把任务id返回给前端
+#2前端可以通过task_id来获取这个任务的执行结果,当执行结果为success时，就返回解析后的数据
+@router.post("/resume/parse",summary="简历解析",response_model=ResumeParseTaskRespSchema)
+async def parse_resume(
+    resume_data: ResumePaseSchema,
+    background_tasks: BackgroundTasks,
+    _ : UserModel = Depends(get_current_user),
+):
+    #创建一个识别简历的后台任务
+    task_id  = str(uuid.uuid4())
+    background_tasks.add_task(ocr_parse_resume_task,resume_id = resume_data.resume_id,task_id = task_id)
+    return {"task_id":task_id}
+
+@router.get("/resume/parse/{task_id}",summary="获取任务状态",response_model=ResumeParseTaskInfoRespSchema)
+async def get_task_status(
+        task_id: str,
+        cache:HRCache = Depends(get_cache_instance),
+        _ : UserModel = Depends(get_current_user),
+):
+    task_info = await cache.get_task_info(task_id)
+    return task_info.model_dump()
+
+
+@router.get("/resume/ocr/test")
+async def resume_ocr_test():
+    file_path = os.path.join(settings.RESUME_DIR,"8cb83391-6844-463a-afac-8cd098f89649.pdf")
+    paddle_ocr = PaddleOcr()
+    job_id = await paddle_ocr.create_job(file_path)
+    json_url = await paddle_ocr.poll_for_state(job_id)
+    contents = await paddle_ocr.fetch_parsed_contents(json_url)
+    logger.info(contents)
+    return "success"
