@@ -31,3 +31,5 @@ class AgentCandidateScoreSchema(BaseModel):
     summary: str = Field(..., description="总结")
     strengths: list[str] = Field(..., description="优点")
     weaknesses: list[str] = Field(..., description="缺点")
+
+
