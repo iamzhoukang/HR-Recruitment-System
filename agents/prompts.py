@@ -55,7 +55,7 @@ SCORE_FOR_CANDIDATE_SYSTEM_PROMPT = """
   "technical_skills_score": <分数, 1-10>,
   "soft_skills_score": <分数, 1-10>,
   "educational_background_score": <分数, 1-10>,
-  "project_experience_score": <分数, 1-10>
+  "project_experience_score": <分数, 1-10>,
   "overall_score": <总分, 1-10>,
   "summary": "[候选人与该职位匹配度的总结]",
   "strengths": [
@@ -71,7 +71,7 @@ SCORE_FOR_CANDIDATE_SYSTEM_PROMPT = """
 
 **评分指南:**
 - **客观公正:** 严格基于输入信息进行评估，避免主观偏见。
-- **总分计算:** `overall_score` 应是各维度分数的加权平均值（总分100分）。你可以自行设定权重，例如：工作经验(30%)、技术技能(30%)、项目经验(20%)、软技能(10%)、教育背景(10%)。
+- **总分计算:** `overall_score` 应是各维度分数的加权平均值（满分10分）。你可以自行设定权重，例如：工作经验(30%)、技术技能(30%)、项目经验(20%)、软技能(10%)、教育背景(10%)。
 - **提供依据:** 在`summary`, `strengths`, `weaknesses`中清晰地阐述你打分的原因。
 - **信息缺失:** 如果简历中缺少某些维度的关键信息，请在`weaknesses`中指出，并酌情降低该项评分。
 """

@@ -1,4 +1,5 @@
 from langchain.agents import create_agent
+from models.user import DingdingUserModel
 from schemas.candidate_schema import CandidateSchema
 from schemas.position_schema import PositionSchema
 from schemas.user_schema import UserSchema
@@ -17,6 +18,47 @@ from langchain_core.prompts import PromptTemplate
 from models import AsyncSession ,AsyncSessionFactory
 from repository.candidate_repo import CandidateAIScoreRepo,CandidateRepo
 from models.candidate import CandidateStatusEnum
+from repository.user_repo import UserRepo
+from core.dingtalk import DingTalkHttp
+from core.cache import HRCache
+from loguru import logger
+from core.cache import DingTAlkTokenInfoSchema
+from datetime import datetime ,timedelta
+from typing import Any
+from utils.available_time import find_available_slot
+from utils.iso8601 import datetime_to_iso8601_beijing,iso8601_to_datetime_beijing
+import json
+
+
+async def get_dingtalk_access_token(user_id: str) -> str:
+    dingding_http = DingTalkHttp()
+
+    # 2. 从缓存中获取该用户的refresh_token
+    cache: HRCache = HRCache()
+    token_info = await cache.get_dingtalk_info(user_id)
+    if not token_info:
+        error_message = f"{user_id}用户钉钉授权已过期！"
+        logger.error(error_message)
+        raise ValueError(error_message)
+
+    try:
+        # 3. 根据refresh_token刷新access_token
+        refresh_token, access_token = await dingding_http.refresh_access_token(token_info.refresh_token)
+
+        # 4. 将获取到的token信息重新设置到缓存中
+        await cache.set_dingtalk_info(
+            DingTAlkTokenInfoSchema(
+                user_id=user_id,
+                access_token=access_token,
+                refresh_token=refresh_token
+            )
+        )
+
+        return access_token
+    except Exception as e:
+        logger.error(e)
+        raise ValueError(e)
+
 
 
 
@@ -36,6 +78,12 @@ class CandidateAgentState(BaseModel):
 async def score_for_candidate(
     runtime:ToolRuntime[CandidateAgentState],
 ):
+    """
+       根据职位信息，给职位上的候选人进行评分。
+       评分结果会存入数据库中，并根据评分结果修改候选人状态。
+       return：
+       - str | None: 评分结果的JSON字符串，如果评分失败则返回None
+    """
     candidate : CandidateSchema= runtime.state['candidate']
     position = runtime.state['position']
 
@@ -53,15 +101,16 @@ async def score_for_candidate(
         "position": position.model_dump_json(),
     })
     response = await score_agent.ainvoke({
-        "messages":[{
-            "role":"user",
-            "content":SCORE_FOR_CANDIDATE_USER_PROMPT
+        "messages": [{
+            "role": "user",
+            "content": user_prompt.text,
         }]
     })
-    candidate_score:AgentCandidateScoreSchema = response['structured_response']
-    #将得分情况存储到数据库中
-    async with AsyncSessionFactory() as session:
-        try:
+    candidate_score: AgentCandidateScoreSchema = response['structured_response']
+
+    # 将评分和候选人状态放在同一个事务中，任一步失败都会一起回滚。
+    try:
+        async with AsyncSessionFactory() as session:
             async with session.begin():
                 score_repo = CandidateAIScoreRepo(session)
                 candidate_repo = CandidateRepo(session)
@@ -70,16 +119,96 @@ async def score_for_candidate(
                     candidate_id=candidate.id,
                     candidate_score_dict=candidate_score.model_dump(),
                 )
-                # 判断得分情况,如果超过8份修改状态为AI_PASS否则是AI_FAILED
-            status = CandidateStatusEnum.AI_FILTER_FAILED
-            if candidate_score.overall_score > 8:
-                status = CandidateStatusEnum.AI_FILTER_PASSED
+                # 判断得分情况，如果超过8分则通过AI筛选，否则筛选失败。
+                status = CandidateStatusEnum.AI_FILTER_FAILED
+                if candidate_score.overall_score > 8:
+                    status = CandidateStatusEnum.AI_FILTER_PASSED
 
-            await candidate_repo.update_candidate_status(candidate_id=candidate.id, status=status)
-        except Exception as e:
-            return f"得分工具执行失败，错误信息为{e}"
+                await candidate_repo.update_candidate_status(
+                    candidate_id=candidate.id,
+                    status=status,
+                )
+    except Exception as e:
+        logger.exception(e)
+        return f"得分工具执行失败，错误信息为：{e}"
     return f"得分工具执行成功，该候选人得分：{candidate_score.model_dump_json()}"
 
+
+@tool()
+async def get_interviewer_available_slot(
+        runtime:ToolRuntime[CandidateAgentState],
+):
+    """
+       根据职位信息，获取面试官可用的面试时间。
+       """
+    interviewer:UserSchema = runtime.state['interviewer']
+    #获取该用户的钉钉账号
+    union_id: str | None = None
+    try:
+        async with AsyncSessionFactory() as session:
+            async with session.begin():
+                user_repo = UserRepo(session)
+                dingding_user: DingdingUserModel | None = await user_repo.get_dingding_user(
+                    user_id=interviewer.id
+                )
+                if not dingding_user:
+                    return "获取面试官可用时间失败：没有绑定钉钉账号！"
+                union_id = dingding_user.union_id
+    except Exception as e:
+        logger.exception(e)
+        return f"获取面试官可用时间失败：{e}"
+
+    try:
+        # 获取access_token
+        access_token: str = await get_dingtalk_access_token(interviewer.id)
+    except Exception as e:
+        logger.error(e)
+        return f"获取面试官可用时间失败：{e} "
+
+    #从钉钉上获取面试官的日程安排
+    try:
+        dingtalk_http = DingTalkHttp()
+        tomorrow_nine = (datetime.now() + timedelta(days=1)).replace(
+            hour=9,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        events: list[dict[str, Any]] = await dingtalk_http.get_calendar_list(
+            union_id=union_id,
+            access_token=access_token,
+            time_min=tomorrow_nine,
+            time_max=tomorrow_nine + timedelta(days=7),
+        ) or []
+        # find_available_slot 内部使用无时区 datetime，所以这里统一移除时区信息。
+        busy_slots = [
+            (
+                iso8601_to_datetime_beijing(
+                    event['start']['dateTime']
+                ).replace(tzinfo=None),
+                iso8601_to_datetime_beijing(
+                    event['end']['dateTime']
+                ).replace(tzinfo=None),
+            )
+            for event in events
+        ]
+        available_slots: List[tuple[datetime, datetime]] = find_available_slot(
+            busy_slots,
+            start_date=tomorrow_nine,
+        )
+        if len(available_slots) == 0:
+            return "获取面试官可用时间失败：7天内没有空闲时间！"
+        available_times = [
+            {
+                "start": datetime_to_iso8601_beijing(slot[0]),
+                "end": datetime_to_iso8601_beijing(slot[1]),
+            }
+            for slot in available_slots
+        ]
+        return f"找到面试官可用的时间：{json.dumps(available_times, ensure_ascii=False)}"
+    except Exception as e:
+        logger.exception(e)
+        return f"获取面试官可用时间失败：{e}"
 
 
 
@@ -108,7 +237,7 @@ class CandidateProcessAgent:
                     keep=("tokens", 20000),
                 ),
             ],
-            tools=[score_for_candidate],
+            tools=[score_for_candidate, get_interviewer_available_slot],
             checkpointer=self._checkpointer,
         )
         response = await agent.ainvoke(
