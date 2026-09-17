@@ -5,7 +5,7 @@ from fastapi_cache import FastAPICache
 from routers.user_router import router as user_router
 from routers.position_router import router as position_router
 from routers.candidate_router import router as candidate_router
-
+from scheduler import start_email_polling
 from contextlib import asynccontextmanager
 from redis import asyncio as aioredis
 from settings import settings
@@ -22,9 +22,16 @@ async def lifespan(_: FastAPI):
     )
     cache_backend = RedisBackend(redis_client)
     FastAPICache.init(cache_backend,prefix="fastapi-cache")
+
+    bot,scheduler = await start_email_polling()
+
     yield
     #yield后的代码，是程序即将退出前执行的
     await redis_client.close()
+    if bot.is_connected():
+        await bot.close()
+    if scheduler.running:
+        await scheduler.stop()
 app = FastAPI(lifespan= lifespan)
 
 #允许跨域
