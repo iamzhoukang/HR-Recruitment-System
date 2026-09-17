@@ -21,10 +21,10 @@ from core.pdf import WordToPdfConverter
 from loguru import logger
 from core.ocr import PaddleOcr
 from tasks import ocr_parse_resume_task
-from schemas import ResponseSchema
+from schemas import ResponseSchema, candidate_schema, position_schema
 from tasks import run_candidate_agent
 from schemas.candidate_schema import CandidateSchema
-from schemas.position_schema import PositionSchema
+from schemas.position_schema import PositionSchema, PositionCreateSchema
 from schemas.user_schema import UserSchema
 import aiofiles
 
@@ -111,6 +111,7 @@ async def get_task_status(
 @router.post("/create",summary="创建候选人",response_model=ResponseSchema)
 async def create_candidate(
     candidate_data: CandidateCreateSchema,
+        background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session_instance),
     current_user: UserModel = Depends(get_current_user),
 ):
@@ -119,6 +120,18 @@ async def create_candidate(
         candidate_dict['creator_id'] = current_user.id
         candidate_repo = CandidateRepo(session)
         candidate = await candidate_repo.create_candidate(candidate_dict)
+        candidate_schema = CandidateSchema.model_validate(candidate)
+        position_schema = PositionSchema.model_validate(candidate.position)
+        interviewer_schema = UserSchema.model_validate(candidate.position.creator)
+
+    background_tasks.add_task(
+            run_candidate_agent,
+            candidate= candidate_schema,
+            position=position_schema,
+            interviewer=interviewer_schema,
+        )
+
+
     return ResponseSchema()
 
 @router.get("/resume/ocr/test")
