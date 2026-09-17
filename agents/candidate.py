@@ -6,11 +6,11 @@ from schemas.user_schema import UserSchema
 from schemas.agent_schema import AgentCandidateScoreSchema
 from langgraph.graph.message import BaseMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from langchain.agents.middleware import ModelFallbackMiddleware,SummarizationMiddleware
+from langchain.agents.middleware import AgentMiddleware, ModelFallbackMiddleware,SummarizationMiddleware
 from .llms import qwen_llm,deepseek_llm
 from .prompts import CANDIDATE_PROCESS_SYSTEM_PROMPT,SCORE_FOR_CANDIDATE_SYSTEM_PROMPT,SCORE_FOR_CANDIDATE_USER_PROMPT
 from settings import settings
-from typing import Annotated, List,TypeVar,Optional
+from typing import Annotated, Any, List, Optional, Sequence, TypeVar, cast
 from langchain.tools import tool , ToolRuntime
 from langchain_core.prompts import PromptTemplate
 from models import AsyncSessionFactory
@@ -22,7 +22,6 @@ from core.cache import HRCache
 from loguru import logger
 from core.cache import DingTAlkTokenInfoSchema
 from datetime import datetime ,timedelta
-from typing import Any
 from utils.available_time import find_available_slot
 from utils.iso8601 import datetime_to_iso8601_beijing,iso8601_to_datetime_beijing
 from core.email_bot import EmailBot, EmailBotSettings
@@ -69,7 +68,7 @@ def assign_state_property(left:T,right:Optional[T]):
     return right if right is not None else left
 
 #checkpointer会自动保存state中的数据到数据库中
-class CandidateAgentState(AgentState):
+class CandidateAgentState(AgentState[Any]):
     candidate : Annotated[CandidateSchema,assign_state_property]
     position: Annotated[PositionSchema,assign_state_property]
     interviewer: Annotated[UserSchema,assign_state_property]
@@ -358,9 +357,52 @@ async def confirm_interview_time(
     * 在系统中修改候选人状态为待面试成功！
     """
 
+@tool()
+async def refuse_interview(
+    runtime: ToolRuntime[CandidateAgentState],
+):
+    """
+       如果候选人拒绝了面试，那么调用该工具来更新候选人状态为拒绝面试
+       """
+    candidate = runtime.state['candidate']
+    try:
+        async with AsyncSessionFactory() as session:
+            async with session.begin():
+                candidate_repo = CandidateRepo(session)
+                await candidate_repo.update_candidate_status(
+                    candidate_id=candidate.id,
+                    status=CandidateStatusEnum.REFUSED_INTERVIEW,
+                )
+        return f"已经修改候选人状态为拒绝"
+    except Exception as e:
+        return f"修改候选人状态为拒绝面试失败：{ e }"
 
 
+@tool()
+def get_current_time() -> str:
+    """
+       获取当前时间（北京时间）：年月日、时分秒、星期几、当月第几天
+       """
+    now_bj = datetime.now()
 
+    weekday_map = {
+        0: "星期一",
+        1: "星期二",
+        2: "星期三",
+        3: "星期四",
+        4: "星期五",
+        5: "星期六",
+        6: "星期日",
+    }
+    weekday_cn = weekday_map[now_bj.weekday()]
+
+    day_of_month = now_bj.day
+
+    return (
+        f"{now_bj.year}年{now_bj.month}月{now_bj.day}日 "
+        f"{now_bj.hour:02d}:{now_bj.minute:02d}:{now_bj.second:02d} "
+        f"{weekday_cn}（本月第{day_of_month}天）"
+    )
 
 class CandidateProcessAgent:
     def __init__(self,
@@ -375,11 +417,12 @@ class CandidateProcessAgent:
 
     async def ainvoke(self, messages: list[BaseMessage], thread_id: str):
         assert self._checkpointer is not None
-        agent = create_agent(
-            model=qwen_llm,
-            system_prompt=CANDIDATE_PROCESS_SYSTEM_PROMPT,
-            state_schema=CandidateAgentState,
-            middleware=[
+
+        # LangChain 内置中间件只声明了标准 AgentState，但自定义 State 是它的扩展。
+        # 显式收窄类型，帮助 PyCharm 正确选择 create_agent 的泛型重载。
+        middleware = cast(
+            Sequence[AgentMiddleware[AgentState[Any], Any, Any]],
+            [
                 ModelFallbackMiddleware(first_model=deepseek_llm),
                 SummarizationMiddleware(
                     model=deepseek_llm,
@@ -387,10 +430,20 @@ class CandidateProcessAgent:
                     keep=("tokens", 20000),
                 ),
             ],
+        )
+        state_schema = cast(type[AgentState[Any]], CandidateAgentState)
+
+        agent = create_agent(
+            model=qwen_llm,
+            system_prompt=CANDIDATE_PROCESS_SYSTEM_PROMPT,
+            state_schema=state_schema,
+            middleware=middleware,
             tools=[score_for_candidate,
                    get_interviewer_available_slot,
                    send_interview_email,
                    confirm_interview_time,
+                   refuse_interview,
+                   get_current_time,
                    ],
             checkpointer=self._checkpointer,
         )

@@ -1,8 +1,9 @@
 import os.path
 import uuid
-
+from repository.user_repo import UserRepo
 from core.cache import HRCache
 from fastapi import APIRouter, Depends, HTTPException, UploadFile , File, BackgroundTasks
+from repository.position_repo import PositionRepo
 from schemas.candidate_schema import (
     ResumeUploadRespSchema,
     ResumePaseSchema,
@@ -14,13 +15,17 @@ from repository.candidate_repo import ResumeRepo, CandidateRepo
 from dependencies import get_session_instance, get_current_user, get_cache_instance
 from settings import settings
 from fastapi import status
-from models import AsyncSession
+from models import AsyncSession, interview
 from models.user import UserModel
 from core.pdf import WordToPdfConverter
 from loguru import logger
 from core.ocr import PaddleOcr
 from tasks import ocr_parse_resume_task
 from schemas import ResponseSchema
+from tasks import run_candidate_agent
+from schemas.candidate_schema import CandidateSchema
+from schemas.position_schema import PositionSchema
+from schemas.user_schema import UserSchema
 import aiofiles
 
 router = APIRouter(prefix="/candidate",tags=["candidate"])
@@ -125,3 +130,28 @@ async def resume_ocr_test():
     contents = await paddle_ocr.fetch_parsed_contents(json_url)
     logger.info(contents)
     return "success"
+
+
+@router.get("/agent/test")
+async def agent_test(
+        background_tasks: BackgroundTasks,
+        session: AsyncSession = Depends(get_session_instance),
+):
+    async with session.begin():
+        candidate_repo = CandidateRepo(session)
+        position_repo = PositionRepo(session)
+        user_repo = UserRepo(session)
+
+        candidate_model = await candidate_repo.get_by_id("5Awx5omuqZ7HyRfWosQKgW")
+        position = await position_repo.get_by_id("JrUsgTqVj3qTGPRag3DaW8")
+        interviewer = await user_repo.get_by_id("LP3ToeUstHVKKrweyxfhfC")
+
+        background_tasks.add_task(
+            run_candidate_agent,
+            candidate = CandidateSchema.model_validate(candidate_model),
+            position = PositionSchema.model_validate(position),
+            interviewer = UserSchema.model_validate(interviewer),
+        )
+
+        return {"result":"success"}
+

@@ -29,6 +29,8 @@ class UserSchema(BaseModel):
     is_hr: bool = Field(..., description="是否HR")
     created_at: datetime = Field(..., description="创建时间")
 
+    model_config = ConfigDict(from_attributes=True)
+
 
 
 
@@ -74,4 +76,3 @@ class DingdingRespSchema(BaseModel):
 class AssignDepartmentSchema(BaseModel):
     hr_id: str = Field(...,description="HR的id")
     department_ids: List[str] = Field(...,description="HR负责的id列表")
-
