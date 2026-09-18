@@ -4,7 +4,8 @@ from core.cache import TaskInfoSchema
 from models.candidate import GenderEnum
 from schemas.position_schema import PositionSchema
 from models.candidate import CandidateStatusEnum
-from typing import List
+from typing import List , Optional
+from datetime import datetime
 
 class ResumeSchema(BaseModel):
     id: str = Field(...,description="简历ID")
@@ -68,3 +69,9 @@ class CandidateSchema(BaseModel):
 
 class CandidateListSchema(BaseModel):
     candidates: List[CandidateSchema]
+
+class CandidateStatusUpdateSchema(BaseModel):
+    status: CandidateStatusEnum = Field(..., description="候选人状态")
+    interview_time: Optional[datetime] = Field(None, description="面试时间，当状态变更为待面试时必填")
+    rejection_reason: Optional[str] = Field(None, description="未通过原因，当状态变更为面试未通过时必填")
+
