@@ -4,6 +4,8 @@ from models.candidate import ResumeModel, CandidateModel, CandidateAIScoreModel,
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select , update
 from models.user import UserModel
+from datetime import datetime
+from sqlalchemy import func ,and_
 
 class ResumeRepo(BaseRepo):
     async def create_resume(self,file_path:str,uploader_id:str) -> ResumeModel:
@@ -71,6 +73,22 @@ class CandidateRepo(BaseRepo):
         offset = (page-1)*size
         stmt = stmt.offset(offset).limit(size).order_by(CandidateModel.created_at.desc())
         return await self.session.scalars(stmt)
+
+    async def candidate_count(self,start_time: datetime,end_time:datetime):
+        stmt = select(
+            func.date(CandidateModel.created_at),
+            func.count(CandidateModel.id)
+        ).where(
+            and_(
+                CandidateModel.created_at >= start_time,
+                CandidateModel.created_at <= end_time
+            )
+        ).group_by(
+            func.date(CandidateModel.created_at),
+        ).order_by(
+            func.date(CandidateModel.created_at),
+        )
+        return (await self.session.execute(stmt)).all()
 
 class CandidateAIScoreRepo(BaseRepo):
     async def create_candidate_score(self, candidate_id: str, candidate_score_dict: dict):
