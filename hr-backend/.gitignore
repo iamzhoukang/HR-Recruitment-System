@@ -1,0 +1,5 @@
+.jbeval
+.venv
+.idea/
+.env
+/upload/

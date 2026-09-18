@@ -1,5 +1,21 @@
-.jbeval
-.venv
-.idea/
-.env
-/upload/
+.DS_Store
+
+# Python generated files and local environments
+**/__pycache__/
+*.py[cod]
+**/.venv/
+
+# JavaScript dependencies and build output
+**/node_modules/
+**/dist/
+
+# IDE local configuration
+**/.idea/
+
+# Local secrets
+**/.env
+**/.env.*
+!**/.env.example
+
+# Runtime uploads
+**/upload/
