@@ -35,6 +35,7 @@ from models.candidate import CandidateStatusEnum
 from repository.interview_repo import InterviewRepo
 from models.interview import InterviewModel, InterviewResultEnum
 import aiofiles
+from pathlib import Path
 
 router = APIRouter(prefix="/candidate",tags=["candidate"])
 
@@ -89,7 +90,9 @@ async def resume_upload(
     #将简历数据存储到数据库中
     async with session.begin():
         resume_repo = ResumeRepo(session)
-        resume = await resume_repo.create_resume(file_path=file_path,uploader_id=current_user.id)
+        # 数据库只保存文件名，避免把某台电脑的绝对路径写入业务数据。
+        file_name = Path(file_path).name
+        resume = await resume_repo.create_resume(file_path=file_name,uploader_id=current_user.id)
     return {"resume":resume}
 
 
@@ -288,4 +291,3 @@ async def agent_test(
         )
 
         return {"result":"success"}
-

@@ -68,6 +68,9 @@ class CandidateRepo(BaseRepo):
             stmt = stmt.join(PositionModel).where(PositionModel.creator_id==current_user.id)
 
         if position_id is not None:
+            stmt = stmt.where(CandidateModel.position_id == position_id)
+
+        if status is not None:
             stmt = stmt.where(CandidateModel.status == status)
 
         offset = (page-1)*size

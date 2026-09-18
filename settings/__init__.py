@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     #Paddle OCR Access Token
     PADDLE_OCR_ACCESS_TOKEN: str = Field(..., validation_alias="PADDLE_OCR_ACCESS_TOKEN")
 
+    # 仅在本地开发时开放 /media 文件访问接口。
+    DEBUG: bool = False
+
 
     @computed_field
     @property

@@ -14,7 +14,8 @@ from schemas.user_schema import (
     UserStatusUpdateSchema,
     DepartmentResSchema,
     DingdingRespSchema,
-    AssignDepartmentSchema
+    AssignDepartmentSchema,
+    HrListRespSchema,
 )
 from dependencies import (
     get_session_instance,
@@ -145,7 +146,8 @@ async def user_list(
     async with session.begin():
         user_repo = UserRepo(session)
         users = await user_repo.get_user_list(page=page,size=size,department_id=department_id)
-    return {"users":users}
+        total = await user_repo.get_user_count(department_id=department_id)
+    return {"users": users, "total": total}
 
 
 @router.patch(path="/status/update",summary="修改员工状态",response_model=ResponseSchema)
@@ -289,4 +291,15 @@ async def assign_department(
             await user_repo.assign_department(hr_id=assign_data.hr_id ,department_ids=assign_data.department_ids)
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=str(e))
-        return ResponseSchema
+        return ResponseSchema()
+
+
+@router.get("/hr/list", summary="获取HR列表", response_model=HrListRespSchema)
+async def get_hr_list(
+        session: AsyncSession = Depends(get_session_instance),
+        _: UserModel = Depends(get_super_user),
+):
+    async with session.begin():
+        user_repo = UserRepo(session)
+        hrs = await user_repo.get_hr_list()
+        return {"hrs": hrs}

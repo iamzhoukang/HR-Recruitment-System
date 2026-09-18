@@ -6,6 +6,7 @@ from routers.user_router import router as user_router
 from routers.position_router import router as position_router
 from routers.candidate_router import router as candidate_router
 from routers.dashboard_router import router as dashboard_router
+from routers.media_router import router as media_router
 from scheduler import start_email_polling
 from contextlib import asynccontextmanager
 from redis import asyncio as aioredis
@@ -48,6 +49,8 @@ app.include_router(user_router)
 app.include_router(position_router)
 app.include_router(candidate_router)
 app.include_router(dashboard_router)
+if settings.DEBUG:
+    app.include_router(media_router)
 @app.get("/")
 async def root():
     return {"message": "Hello World"}

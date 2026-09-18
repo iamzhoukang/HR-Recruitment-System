@@ -1,4 +1,4 @@
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 
 from . import BaseRepo
 from models.user import UserModel, DingdingUserModel, DepartmentModel
@@ -38,6 +38,20 @@ class UserRepo(BaseRepo):
         stmt = stmt.limit(limit).offset(offset).order_by(UserModel.created_at.desc())
         users = await self.session.scalars(stmt)
         return users.all()
+
+    async def get_user_count(self, department_id: str | None = None) -> int:
+        stmt = select(func.count(UserModel.id))
+        if department_id:
+            stmt = stmt.where(UserModel.department_id == department_id)
+        return await self.session.scalar(stmt) or 0
+
+    async def get_hr_list(self):
+        stmt = (
+            select(UserModel)
+            .where(UserModel.is_hr.is_(True))
+            .options(selectinload(UserModel.managed_departments))
+        )
+        return (await self.session.scalars(stmt)).all()
 
     async def set_dingding_user(self,user_id:str,dingding_user_data:dict) -> DingdingUserModel:
         user = await self.get_by_id(user_id)
@@ -102,4 +116,3 @@ class DepartmentRepo(BaseRepo):
        await self.session.execute(
             delete(DepartmentModel).where(DepartmentModel.id == department_id)
         )
-
