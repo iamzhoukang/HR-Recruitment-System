@@ -75,3 +75,20 @@ class CandidateStatusUpdateSchema(BaseModel):
     interview_time: Optional[datetime] = Field(None, description="面试时间，当状态变更为待面试时必填")
     rejection_reason: Optional[str] = Field(None, description="未通过原因，当状态变更为面试未通过时必填")
 
+class CandidateAIScoreSchema(BaseModel):
+    id: str
+    work_experience_score: int
+    technical_skills_score: int
+    soft_skills_score: int
+    educational_background_score: int
+    project_experience_score: int
+    overall_score: int
+    summary: str
+    strengths: list[str]
+    weaknesses: list[str]
+    candidate_id: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CandidateAIScoreRespSchema(BaseModel):
+    ai_score: CandidateAIScoreSchema

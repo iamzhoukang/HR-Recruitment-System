@@ -12,9 +12,11 @@ from schemas.candidate_schema import (
     ResumeParseTaskInfoRespSchema,
     CandidateCreateSchema,
     CandidateListSchema,
-    CandidateStatusUpdateSchema
+    CandidateStatusUpdateSchema,
+    CandidateAIScoreSchema,
+    CandidateAIScoreRespSchema
 )
-from repository.candidate_repo import ResumeRepo, CandidateRepo
+from repository.candidate_repo import ResumeRepo, CandidateRepo, CandidateAIScoreRepo
 from dependencies import get_session_instance, get_current_user, get_cache_instance
 from settings import settings
 from fastapi import status
@@ -235,10 +237,18 @@ async def update_candidate_status(
 
 
 
-
-
-
-
+@router.get("/ai-score/{candidate_id}",summary="获取候选人AI得分",response_model=CandidateAIScoreRespSchema)
+async def get_candidate_ai_score(
+    candidate_id: str,
+    session: AsyncSession = Depends(get_session_instance),
+    current_user: UserModel = Depends(get_current_user),
+):
+    async with session.begin():
+        score_repo = CandidateAIScoreRepo(session)
+        ai_score = await score_repo.get_by_candidate_id(candidate_id)
+        if not ai_score:
+            raise HTTPException(status_code=400,detail="候选人AI评分不存在")
+        return {"ai_score": ai_score}
 
 
 
