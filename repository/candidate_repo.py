@@ -1,7 +1,9 @@
+from models.positions import PositionModel
 from . import BaseRepo
 from models.candidate import ResumeModel, CandidateModel, CandidateAIScoreModel,CandidateStatusEnum
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select , update
+from models.user import UserModel
 
 class ResumeRepo(BaseRepo):
     async def create_resume(self,file_path:str,uploader_id:str) -> ResumeModel:
@@ -36,6 +38,39 @@ class CandidateRepo(BaseRepo):
             )
         )
 
+    async def get_list(self,current_user:UserModel,
+                       position_id:str|None = None,
+                       status:CandidateStatusEnum|None = None,
+                       page:int =1,size:int = 10):
+        stmt = select(CandidateModel)
+        #按照用户的角色来查找
+        #1如果是super可以获取所以，如果是HR获取所负责的部门,如果是部分成员可以获取自己发布职位
+        if current_user.is_superuser:
+            pass
+        elif current_user.is_hr:
+            hr_user = await self.session.scalar(
+                select(UserModel)
+                .where(UserModel.id==current_user.id)
+                .options(selectinload(UserModel.managed_departments))
+            )
+            #提取hr所负责的部门的ID
+            managed_department_ids = [
+                d.id for d in hr_user.managed_departments
+            ]
+            if len(managed_department_ids) == 0:
+                return []
+            #用连接的形式过滤候选人
+            stmt = stmt.join(PositionModel).where(PositionModel.department_id.in_(managed_department_ids))
+        else:
+            #如果是普通成员
+            stmt = stmt.join(PositionModel).where(PositionModel.creator_id==current_user.id)
+
+        if position_id is not None:
+            stmt = stmt.where(CandidateModel.status == status)
+
+        offset = (page-1)*size
+        stmt = stmt.offset(offset).limit(size).order_by(CandidateModel.created_at.desc())
+        return await self.session.scalars(stmt)
 
 class CandidateAIScoreRepo(BaseRepo):
     async def create_candidate_score(self, candidate_id: str, candidate_score_dict: dict):

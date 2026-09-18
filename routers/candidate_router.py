@@ -1,5 +1,6 @@
 import os.path
 import uuid
+from fastapi import Query
 from repository.user_repo import UserRepo
 from core.cache import HRCache
 from fastapi import APIRouter, Depends, HTTPException, UploadFile , File, BackgroundTasks
@@ -9,7 +10,8 @@ from schemas.candidate_schema import (
     ResumePaseSchema,
     ResumeParseTaskRespSchema,
     ResumeParseTaskInfoRespSchema,
-    CandidateCreateSchema
+    CandidateCreateSchema,
+    CandidateListSchema
 )
 from repository.candidate_repo import ResumeRepo, CandidateRepo
 from dependencies import get_session_instance, get_current_user, get_cache_instance
@@ -26,6 +28,7 @@ from tasks import run_candidate_agent
 from schemas.candidate_schema import CandidateSchema
 from schemas.position_schema import PositionSchema, PositionCreateSchema
 from schemas.user_schema import UserSchema
+from models.candidate import CandidateStatusEnum
 import aiofiles
 
 router = APIRouter(prefix="/candidate",tags=["candidate"])
@@ -131,8 +134,29 @@ async def create_candidate(
             interviewer=interviewer_schema,
         )
 
-
     return ResponseSchema()
+
+
+@router.get("/list",summary="获取候选人列表",response_model=CandidateListSchema)
+async def get_candidate_list(
+        page: int = Query(1,description="页码"),
+        size: int = Query(10,description="每页数量"),
+        position_id:str | None = Query(None,description="职位的ID"),
+        status:CandidateStatusEnum | None =  Query(None,description="候选人状态"),
+        session: AsyncSession = Depends(get_session_instance),
+        current_user: UserModel = Depends(get_current_user),
+):
+    async with session.begin():
+        candidate_repo = CandidateRepo(session)
+        candidates = await candidate_repo.get_list(
+            current_user=current_user,
+            position_id=position_id,
+            status=status,
+            page=page,
+            size=size,
+        )
+        return {"candidates":candidates}
+
 
 @router.get("/resume/ocr/test")
 async def resume_ocr_test():
